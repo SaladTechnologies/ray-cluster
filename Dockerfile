@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     net-tools \
     iputils-ping \
-    nginx 
+    nginx \
+    git
     
 # Install Tailscale
 # https://docs.salad.com/container-engine/how-to-guides/platform-integrations/tailscale-basic
