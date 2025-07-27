@@ -1,0 +1,140 @@
+import speedtest
+from pythonping import ping
+import os
+import json
+import subprocess
+
+g_DLSPEED = int(os.getenv("DLSPEED", "50")) # Mbps
+g_ULSPEED = int(os.getenv("ULSPEED", "20")) # Mbps
+g_RTT     = int(os.getenv("RTT","499"))     # ms
+
+SALAD_MACHINE_ID =  os.getenv("SALAD_MACHINE_ID",'local')
+
+# Test network bandwdith
+def network_test():
+    print("Test the network speed ... ", flush=True)
+    try:
+        speed_test = speedtest.Speedtest()
+        bserver    = speed_test.get_best_server()
+        dlspeed    = int(speed_test.download() / (1000 * 1000))  # Convert to Mbps, not Mib
+        ulspeed    = int(speed_test.upload() / (1000 * 1000))  # Convert to Mbps, not Mib
+        latency    = bserver['latency'] # the RTT to the selected test server
+        country    = bserver['country'] 
+        location   = bserver['name']
+    except Exception as e:  
+        # Some ISPs may block speed test traffic; in such cases, we fall back to the default network performance for the node.
+        return "none", "none", g_RTT, g_DLSPEED, g_ULSPEED
+    
+    return country, location, latency, dlspeed, ulspeed   
+
+# Test network latency
+# Only the root user can run this code - no issue in containers
+def ping_test(tCount=10):
+    if tCount ==0:
+        return g_RTT, g_RTT, g_RTT
+    try:
+        print("Test the RTT ... ", flush=True)
+        print("To: ec2.us-west-1.amazonaws.com")
+        temp = ping('ec2.us-west-1.amazonaws.com', interval=1, count=tCount)
+        latency_uswest1 = temp.rtt_avg_ms # average of successful pings only     
+    
+        print("To: ec2.us-east-2.amazonaws.com")
+        temp = ping('ec2.us-east-2.amazonaws.com', interval=1, count=tCount)
+        latency_useast2 = temp.rtt_avg_ms # average of successful pings only     
+
+        print("To: ec2.eu-central-1.amazonaws.com")  
+        temp = ping('ec2.eu-central-1.amazonaws.com', interval=1, count=tCount)
+        latency_eucentral1 = temp.rtt_avg_ms # average of successful pings only.
+    except Exception as e:  
+        return g_RTT, g_RTT, g_RTT
+    
+    return latency_uswest1, latency_useast2, latency_eucentral1
+
+# Read the supported CUDA RT Version
+def Get_CUDA_Version():
+    try:
+        cmd = 'nvidia-smi'
+        output = subprocess.check_output(cmd, shell=True, text=True)
+        output = output.split("\n")[2]
+        output = output.split("CUDA Version: ")[-1]
+        version = float(output.split(" ")[0])
+    except Exception as e: 
+        return 0
+    return version 
+
+# Get the GPU info
+def Get_GPU():
+    try:
+        result = {}
+        cmd = 'nvidia-smi --query-gpu=gpu_name,memory.total,memory.used,memory.free,utilization.memory,temperature.gpu,utilization.gpu --format=csv,noheader'
+        output = subprocess.check_output(cmd, shell=True, text=True)
+        result['gpu'], result['vram_total'], result['vram_used'], result['vram_free'], result['vram_utilization'], result['gpu_temperature'], result['gpu_utilization'] = output.strip().split(', ')
+    except Exception as e:
+        return {}
+    return result 
+
+# Get the DC GPU info
+def Get_DC_GPUs():
+    try:
+        result = []
+        cmd = ('nvidia-smi --query-gpu=gpu_name,memory.total,memory.used,memory.free,'
+               'utilization.memory,temperature.gpu,utilization.gpu --format=csv,noheader,nounits')
+        output = subprocess.check_output(cmd, shell=True, text=True)
+        lines = output.strip().split('\n')
+        for line in lines:
+            gpu_name, vram_total, vram_used, vram_free, mem_util, temp, gpu_util = line.strip().split(', ')
+            result.append({
+                'gpu': gpu_name,
+                'vram_total': int(vram_total),
+                'vram_used': int(vram_used),
+                'vram_free': int(vram_free),
+                'vram_utilization': int(mem_util),
+                'gpu_temperature': int(temp),
+                'gpu_utilization': int(gpu_util)
+            })
+        return result
+    except Exception as e:
+        return []
+
+
+# Not output any messages to stdout
+def Initial_Check():    
+
+    if SALAD_MACHINE_ID == "LOCAL" or SALAD_MACHINE_ID == "local":       # Skip the initial checks if run locally    
+        environment= { "pass": str(True) }   
+    else:
+        # Network test: bandwidth
+        country, location, latency, dlspeed, ulspeed = network_test() 
+  
+        # Network test: latency to some locations; should reallocate if ping fails
+        latency_us_w, latency_us_e, latency_eu = ping_test(tCount = 10) 
+
+        if ulspeed < g_ULSPEED or dlspeed < g_DLSPEED or latency_us_w > g_RTT or latency_us_e > g_RTT or latency_eu > g_RTT:
+            Pass = False
+        else:
+            Pass = True
+
+        # CUDA Version
+        CUDA_version = Get_CUDA_Version()
+
+        # GPU Info
+        GPUS = Get_DC_GPUs()
+
+        environment = { "pass":               str(Pass),
+                        "country":            country,
+                        "location":           location,
+                        "rtt_ms":             str(latency),
+                        "upload_Mbps":        str(ulspeed),
+                        "download_Mbps":      str(dlspeed), 
+                        "rtt_to_us_west1_ms": str(latency_us_w),                        
+                        "rtt_to_us_east2_ms": str(latency_us_e),
+                        "rtt_to_eu_cent1_ms": str(latency_eu),
+                        "cuda":               CUDA_version,
+                        "gpus":               GPUS,
+        }
+
+    return environment
+
+
+temp = Initial_Check()
+print(json.dumps(temp, indent=2))

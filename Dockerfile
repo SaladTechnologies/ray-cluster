@@ -1,17 +1,23 @@
-FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
+FROM docker.io/pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
 
+# Install essential utilities
 RUN apt-get update && apt-get install -y \
     wget \
     tree \
     nano \
     curl \
+    net-tools \
+    iputils-ping \
     nginx 
     
-RUN pip install ray[data,train,tune,serve]==2.47.1
+# Install Tailscale
+# https://docs.salad.com/container-engine/how-to-guides/platform-integrations/tailscale-basic
+RUN curl -fsSL https://tailscale.com/install.sh | sh
+# Install and configure proxychains4 to use Tailscale's SOCKS5 proxy (Optional)
+RUN apt-get install -y proxychains4 
+RUN sed -i 's/socks4[[:space:]]\+127\.0\.0\.1[[:space:]]\+9050/socks5  127.0.0.1 1055/' /etc/proxychains4.conf
 
-RUN pip install jupyterlab ipywidgets
-
-# Optional: Install VS Code Server for remote debugging
+# Install VS Code Server for remote debugging
 # https://docs.salad.com/container-engine/tutorials/development-tools/vscode-remote-development#interactive-mode
 RUN curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' -o vscode_cli.tar.gz && \
     tar -xf vscode_cli.tar.gz && \
@@ -22,8 +28,11 @@ RUN curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alp
 # code tunnel user login --provider github
 # nohup code tunnel --accept-server-license-terms --name 001 &> output.log &
 
-
-RUN pip install transformers accelerate datasets python-dotenv
+RUN pip install --upgrade pip
+RUN pip install ray[data,train,tune,serve]==2.47.1
+RUN pip install jupyterlab ipywidgets
+RUN pip install transformers accelerate datasets 
+RUN pip install python-dotenv flask speedtest-cli pythonping
 
 # Enable IPv4/v6 dual-stack support on Nginx for SaladCloud's Container Gateway
 # Listen on Port 8000
@@ -35,7 +44,7 @@ RUN ln -s /etc/nginx/sites-available/routing.conf /etc/nginx/sites-enabled/routi
 # ./restart_nginx.sh
 
 WORKDIR /app
-COPY Dockerfile routing.conf restart_nginx.sh start.sh ray* test* /app/
+COPY Dockerfile routing.conf restart_nginx.sh start.sh initial_check.py ray* test* /app/
 RUN chmod +x /app/start.sh
 RUN chmod +x /app/restart_nginx.sh
 
@@ -45,5 +54,5 @@ CMD ["./start.sh"]
 # ------> 8000 IPv4/v6 --- /ray/     --> 8265 IPv4,    Ray Dashboard
 #                     \--- /jupyter/ --> 8889 IPv4/v6, Jupyter Lab
 
-# Image: docker.io/saladtechnologies/ray:001-test
-# Repository: https://github.com/SaladTechnologies/ray-cluster
+# The pre-built image: docker.io/saladtechnologies/ray:001-test
+# GitHub Repository: https://github.com/SaladTechnologies/ray-cluster
