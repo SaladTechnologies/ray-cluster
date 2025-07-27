@@ -45,4 +45,5 @@ CMD ["./start.sh"]
 # ------> 8000 IPv4/v6 --- /ray/     --> 8265 IPv4,    Ray Dashboard
 #                     \--- /jupyter/ --> 8889 IPv4/v6, Jupyter Lab
 
-# docker.io/saladtechnologies/ray:001-test
+# Image: docker.io/saladtechnologies/ray:001-test
+# Repository: https://github.com/SaladTechnologies/ray-cluster
