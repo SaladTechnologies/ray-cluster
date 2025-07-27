@@ -51,9 +51,29 @@ RUN chmod +x /app/restart_nginx.sh
 
 CMD ["./start.sh"]
 
-#          Nginx
+#         Nginx
 # ------> 8000 IPv4/v6 --- /ray/     --> 8265 IPv4,    Ray Dashboard
 #                     \--- /jupyter/ --> 8889 IPv4/v6, Jupyter Lab
 
-# The pre-built image: docker.io/saladtechnologies/ray:001-test
-# GitHub Repository: https://github.com/SaladTechnologies/ray-cluster
+# The pre-built images 
+# docker.io/saladtechnologies/ray:001-test
+# docker.io/saladtechnologies/ray:002-test
+
+
+# VS Code Remote - SSH
+# root@tailscale-ip
+# Python Extension 
+
+# GitHub Repository 
+# https://github.com/SaladTechnologies/ray-cluster
+# git config --global user.name ""
+# git config --global user.email ""
+
+# tailscale status
+# tailscale ip
+# tailscale ping tailscale-ip
+# ALL_PROXY=socks5://localhost:1055/ curl http://tailscale-ip
+# http_proxy=http://localhost:1055/ curl http://tailscale-ip
+# proxychains4 curl http://tailscale-ip
+
+# python -m http.server 8000
