@@ -8,7 +8,7 @@ g_DLSPEED = int(os.getenv("DLSPEED", "50")) # Mbps
 g_ULSPEED = int(os.getenv("ULSPEED", "20")) # Mbps
 g_RTT     = int(os.getenv("RTT","499"))     # ms
 
-SALAD_MACHINE_ID =  os.getenv("SALAD_MACHINE_ID",'local')
+SALAD_MACHINE_ID =  os.getenv("SALAD_MACHINE_ID",'wsl')
 
 # Test network bandwdith
 def network_test():
@@ -120,7 +120,8 @@ def Initial_Check():
         # GPU Info
         GPUS = Get_DC_GPUs()
 
-        environment = { "pass":               str(Pass),
+        environment = { "salad_machine_id":   SALAD_MACHINE_ID,
+                        "pass":               str(Pass),
                         "country":            country,
                         "location":           location,
                         "rtt_ms":             str(latency),
